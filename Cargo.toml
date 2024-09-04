@@ -7,8 +7,5 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.0.13", features = ["derive"] }
-hyprland = "0.4.0-alpha.2"
-
-[[bin]]
-name = "hypr-tools"
-path = "main.rs"
+# hyprland = "0.4.0-alpha.2"
+hyprland = { git = "https://github.com/hyprland-community/hyprland-rs", branch = "master" }

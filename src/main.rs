@@ -7,6 +7,8 @@ use std::process::Command;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
+mod ssht;
+
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
@@ -58,21 +60,32 @@ fn tmux_move(direction: Direction) -> bool {
 
 // inspired by https://github.com/intrntbrn/awesomewm-vim-tmux-navigator
 fn tmux_focus(direction: Direction) {
-  let mut win = hyprland::data::Client::get_active().unwrap().unwrap();
-  let win = win.borrow_mut();
-
-  if win.title.starts_with("tmux") && tmux_move(direction) {
-    return;
-  }
-
-  let direction = match direction {
+  let hdirection = match direction {
     Direction::Up => dispatch::Direction::Up,
     Direction::Down => dispatch::Direction::Down,
     Direction::Left => dispatch::Direction::Left,
     Direction::Right => dispatch::Direction::Right,
   };
 
-  Dispatch::call(DispatchType::MoveFocus(direction)).unwrap();
+  let mut win = match hyprland::data::Client::get_active().unwrap() {
+    Some(win) => win,
+    None => {
+      Dispatch::call(DispatchType::MoveFocus(hdirection)).unwrap();
+      return;
+    }
+  };
+
+  let win = win.borrow_mut();
+
+  if win.title.starts_with("tmux") && tmux_move(direction) {
+    return;
+  }
+
+  if ssht::ssh_tmux_move(win.pid as u32, direction) {
+    return;
+  }
+
+  Dispatch::call(DispatchType::MoveFocus(hdirection)).unwrap();
 }
 
 fn main() {
