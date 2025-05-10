@@ -11,7 +11,7 @@ use crate::Direction;
 fn get_parent_pid(pid: u32) -> Option<u32> {
   let path = format!("/proc/{pid}/stat");
   let ppid = std::fs::read_to_string(path)
-    .unwrap()
+    .ok()?
     .split(' ')
     .nth(3)
     .unwrap()
@@ -42,11 +42,10 @@ fn get_pid(path: &Path) -> Option<u32> {
 }
 
 fn get_all_ssht_pids() -> Vec<u32> {
-  std::fs::read_dir("/tmp/ssht/")
-    .unwrap()
-    .filter_map(|f| f.ok())
-    .filter_map(|f| get_pid(&f.path()))
-    .collect()
+  let Ok(f) = std::fs::read_dir("/tmp/ssht/") else {
+    return Vec::new();
+  };
+  f.filter_map(|f| f.ok()).filter_map(|f| get_pid(&f.path())).collect()
 }
 
 pub fn get_ssht_pid_from_ppid(ppid: u32) -> Option<u32> {
