@@ -87,11 +87,11 @@ fn has_pane_in_direction(pid: u32, direction: Direction) -> bool {
 }
 
 pub fn ssh_tmux_move(current_window_id: u32, direction: Direction) -> bool {
-  if let Some(pid) = get_ssht_pid_from_ppid(current_window_id) {
-    if has_pane_in_direction(pid, direction) {
-      move_direction(pid, direction);
-      return true;
-    }
+  if let Some(pid) = get_ssht_pid_from_ppid(current_window_id)
+    && has_pane_in_direction(pid, direction)
+  {
+    move_direction(pid, direction);
+    return true;
   }
   false
 }

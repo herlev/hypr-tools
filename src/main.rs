@@ -1,8 +1,11 @@
 use hyprland::dispatch::DispatchType;
 use hyprland::dispatch::{self, Dispatch};
 use hyprland::shared::HyprDataActiveOptional;
+use niri_ipc::socket::Socket;
+use niri_ipc::{Action, Request, Response};
 
 use std::borrow::BorrowMut;
+use std::env;
 use std::process::Command;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -59,7 +62,7 @@ fn tmux_move(direction: Direction) -> bool {
 }
 
 // inspired by https://github.com/intrntbrn/awesomewm-vim-tmux-navigator
-fn tmux_focus(direction: Direction) {
+fn tmux_focus_hyprland(direction: Direction) {
   let hdirection = match direction {
     Direction::Up => dispatch::Direction::Up,
     Direction::Down => dispatch::Direction::Down,
@@ -88,9 +91,55 @@ fn tmux_focus(direction: Direction) {
   Dispatch::call(DispatchType::MoveFocus(hdirection)).unwrap();
 }
 
+fn tmux_focus_niri(direction: Direction) {
+  let action = match direction {
+    Direction::Up => Action::FocusWindowUp {},
+    Direction::Down => Action::FocusWindowDown {},
+    Direction::Left => Action::FocusColumnLeft {},
+    Direction::Right => Action::FocusColumnRight {},
+  };
+
+  let mut socket = Socket::connect().unwrap();
+  let reply = socket.send(Request::FocusedWindow).unwrap();
+  let res = reply.unwrap();
+  let Response::FocusedWindow(win) = res else { panic!() };
+
+  let win = match win {
+    Some(win) => win,
+    None => {
+      socket.send(Request::Action(action)).unwrap().unwrap();
+      return;
+    }
+  };
+
+  if win.title.unwrap_or_default().starts_with("tmux") && tmux_move(direction) {
+    return;
+  }
+
+  if let Some(pid) = win.pid
+    && ssht::ssh_tmux_move(pid as u32, direction)
+  {
+    return;
+  }
+
+  socket.send(Request::Action(action)).unwrap().unwrap();
+}
+
+enum Wm {
+  Hyprland,
+  Niri,
+}
+
 fn main() {
+  use Wm::*;
+  let wm = match env::var("XDG_CURRENT_DESKTOP").unwrap().as_str() {
+    "Hyprland" => Hyprland,
+    "niri" => Niri,
+    wm => panic!("Unknown WM {wm}"),
+  };
   let cli = Cli::parse();
-  match cli.command {
-    Commands::TmuxFocus { direction } => tmux_focus(direction),
+  match (wm, cli.command) {
+    (Hyprland, Commands::TmuxFocus { direction }) => tmux_focus_hyprland(direction),
+    (Niri, Commands::TmuxFocus { direction }) => tmux_focus_niri(direction),
   }
 }
